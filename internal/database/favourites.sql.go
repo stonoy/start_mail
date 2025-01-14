@@ -131,6 +131,17 @@ func (q *Queries) GetAllFavOfUser(ctx context.Context, arg GetAllFavOfUserParams
 	return items, nil
 }
 
+const getNumFav = `-- name: GetNumFav :one
+select count(*) from favourite where userid = $1
+`
+
+func (q *Queries) GetNumFav(ctx context.Context, userid uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getNumFav, userid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const numOfAllFavUser = `-- name: NumOfAllFavUser :one
 select count(*) from favourite f
 inner join email e

@@ -21,3 +21,6 @@ where f.userid = $1;
 -- name: DeleteFav :one
 delete from favourite where id = $1 and userid = $2
 returning *;
+
+-- name: GetNumFav :one
+select count(*) from favourite where userid = $1;

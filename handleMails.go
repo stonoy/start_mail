@@ -37,10 +37,21 @@ func (cfg *apiConfig) createEmail(w http.ResponseWriter, r *http.Request, user d
 	}
 
 	// parse the user id taken from request body
-	recipientId, err := uuid.Parse(reqObj.Recipient)
+	// recipientId, err := uuid.Parse(reqObj.Recipient)
+	// if err != nil {
+	// 	respWithError(w, 401, fmt.Sprintf("error in parsing user id -> %v", err))
+	// 	return
+	// }
+
+	recipientUser, err := cfg.db.GetUserByEmail(r.Context(), reqObj.Recipient)
 	if err != nil {
-		respWithError(w, 401, fmt.Sprintf("error in parsing user id -> %v", err))
-		return
+		if err == sql.ErrNoRows {
+			respWithError(w, 400, fmt.Sprintf("no user with email -> %v", reqObj.Recipient))
+			return
+		} else {
+			respWithError(w, 500, fmt.Sprintf("error in GetUserByEmail -> %v", err))
+			return
+		}
 	}
 
 	// create email
@@ -51,7 +62,7 @@ func (cfg *apiConfig) createEmail(w http.ResponseWriter, r *http.Request, user d
 		Subject:   reqObj.Subject,
 		Body:      reqObj.Body,
 		Sender:    user.ID,
-		Reciever:  recipientId,
+		Reciever:  recipientUser.ID,
 	})
 	if err != nil {
 		respWithError(w, 500, fmt.Sprintf("error in CreateMail -> %v", err))
@@ -168,7 +179,7 @@ func (cfg *apiConfig) Inbox(w http.ResponseWriter, r *http.Request, user databas
 	}
 
 	respWithJson(w, 200, respStruct{
-		Emails:     dbToRespEmail(emails),
+		Emails:     dbToRespEmailInbox(emails),
 		NumOfPages: numOfPages,
 		Page:       page,
 	})
@@ -268,7 +279,7 @@ func (cfg *apiConfig) SentBox(w http.ResponseWriter, r *http.Request, user datab
 	}
 
 	respWithJson(w, 200, respStruct{
-		Emails:     dbToRespEmail(emails),
+		Emails:     dbToRespEmailSentBox(emails),
 		NumOfPages: numOfPages,
 		Page:       page,
 	})
@@ -283,7 +294,7 @@ func (cfg *apiConfig) getSingleMail(w http.ResponseWriter, r *http.Request, user
 		return
 	}
 
-	email, err := cfg.db.GetMailById(r.Context(), database.GetMailByIdParams{
+	emailDetails, err := cfg.db.GetMailById(r.Context(), database.GetMailByIdParams{
 		ID:       emailId,
 		Sender:   user.ID,
 		Reciever: user.ID,
@@ -299,19 +310,54 @@ func (cfg *apiConfig) getSingleMail(w http.ResponseWriter, r *http.Request, user
 	}
 
 	type respStruct struct {
-		Email Email `json:"email"`
+		Email EmailDetail `json:"email"`
 	}
 
 	respWithJson(w, 200, respStruct{
-		Email: Email{
-			ID:        email.ID,
-			CreatedAt: email.CreatedAt,
-			UpdatedAt: email.UpdatedAt,
-			Subject:   email.Subject,
-			Body:      email.Body,
-			Sender:    email.Sender,
-			Reciever:  email.Reciever,
+		Email: EmailDetail{
+			ID:            emailDetails.ID,
+			CreatedAt:     emailDetails.CreatedAt,
+			UpdatedAt:     emailDetails.UpdatedAt,
+			Subject:       emailDetails.Subject,
+			Body:          emailDetails.Body,
+			Sender:        emailDetails.Sender,
+			Reciever:      emailDetails.Reciever,
+			Sender_Email:  emailDetails.Email,
+			Reciver_Email: emailDetails.Email_2,
 		},
 	})
 
+}
+
+func (cfg *apiConfig) getMAilBoxNums(w http.ResponseWriter, r *http.Request, user database.User) {
+
+	inboxCount, err := cfg.db.GetInboxCount(r.Context(), user.ID)
+	if err != nil {
+		respWithError(w, 500, fmt.Sprintf("error in GetInboxCount -> %v", err))
+		return
+	}
+
+	sentBoxCount, err := cfg.db.GetSentBoxCount(r.Context(), user.ID)
+	if err != nil {
+		respWithError(w, 500, fmt.Sprintf("error in GetSentBoxCount -> %v", err))
+		return
+	}
+
+	favCount, err := cfg.db.GetNumFav(r.Context(), user.ID)
+	if err != nil {
+		respWithError(w, 500, fmt.Sprintf("error in GetNumFav -> %v", err))
+		return
+	}
+
+	type respStruct struct {
+		InboxNum   int `json:"inbox_num"`
+		SentBoxNum int `json:"sentbox_num"`
+		FavNum     int `json:"fav_num"`
+	}
+
+	respWithJson(w, 200, respStruct{
+		InboxNum:   int(inboxCount),
+		SentBoxNum: int(sentBoxCount),
+		FavNum:     int(favCount),
+	})
 }

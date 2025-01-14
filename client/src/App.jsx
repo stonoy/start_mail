@@ -1,6 +1,6 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import HomLayOut from "./components/HomLayOut"
-import { Favourite, Inbox, Login, Register, SentBox } from "./components"
+import { EmailDetails, Favourite, Inbox, Login, Register, SentBox } from "./components"
 
 const router = createBrowserRouter([
   {
@@ -18,6 +18,10 @@ const router = createBrowserRouter([
       {
         path: "favourite",
         element: <Favourite/>,
+      },
+      {
+        path: "email/:emailId",
+        element: <EmailDetails />,
       }
     ]
   },

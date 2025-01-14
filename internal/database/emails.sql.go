@@ -51,8 +51,22 @@ func (q *Queries) CreateMail(ctx context.Context, arg CreateMailParams) (Email, 
 	return i, err
 }
 
+const getInboxCount = `-- name: GetInboxCount :one
+select count(*) from email where reciever = $1
+`
+
+func (q *Queries) GetInboxCount(ctx context.Context, reciever uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getInboxCount, reciever)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getMailById = `-- name: GetMailById :one
-select id, created_at, updated_at, subject, body, sender, reciever from email where id = $1 and (sender = $2 or reciever = $3)
+select e.id, e.created_at, e.updated_at, e.subject, e.body, e.sender, e.reciever, u1.email, u2.email from email e
+inner join users u1 on e.sender = u1.id
+inner join users u2 on e.reciever = u2.id
+where e.id = $1 and (e.sender = $2 or e.reciever = $3)
 `
 
 type GetMailByIdParams struct {
@@ -61,9 +75,21 @@ type GetMailByIdParams struct {
 	Reciever uuid.UUID
 }
 
-func (q *Queries) GetMailById(ctx context.Context, arg GetMailByIdParams) (Email, error) {
+type GetMailByIdRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Subject   string
+	Body      string
+	Sender    uuid.UUID
+	Reciever  uuid.UUID
+	Email     string
+	Email_2   string
+}
+
+func (q *Queries) GetMailById(ctx context.Context, arg GetMailByIdParams) (GetMailByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getMailById, arg.ID, arg.Sender, arg.Reciever)
-	var i Email
+	var i GetMailByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -72,14 +98,28 @@ func (q *Queries) GetMailById(ctx context.Context, arg GetMailByIdParams) (Email
 		&i.Body,
 		&i.Sender,
 		&i.Reciever,
+		&i.Email,
+		&i.Email_2,
 	)
 	return i, err
 }
 
+const getSentBoxCount = `-- name: GetSentBoxCount :one
+select count(*) from email where sender = $1
+`
+
+func (q *Queries) GetSentBoxCount(ctx context.Context, sender uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getSentBoxCount, sender)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const inboxMailWithFilter = `-- name: InboxMailWithFilter :many
-select id, created_at, updated_at, subject, body, sender, reciever from email
-where reciever = $1 and body like $2 and created_at between $3 and $4
-order by updated_at desc
+select email.id, email.created_at, email.updated_at, email.subject, email.body, email.sender, email.reciever, users.email from email
+inner join users on email.sender = users.id
+where email.reciever = $1 and email.body like $2 and email.created_at between $3 and $4
+order by email.updated_at desc
 limit $5
 offset $6
 `
@@ -93,7 +133,18 @@ type InboxMailWithFilterParams struct {
 	Offset      int32
 }
 
-func (q *Queries) InboxMailWithFilter(ctx context.Context, arg InboxMailWithFilterParams) ([]Email, error) {
+type InboxMailWithFilterRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Subject   string
+	Body      string
+	Sender    uuid.UUID
+	Reciever  uuid.UUID
+	Email     string
+}
+
+func (q *Queries) InboxMailWithFilter(ctx context.Context, arg InboxMailWithFilterParams) ([]InboxMailWithFilterRow, error) {
 	rows, err := q.db.QueryContext(ctx, inboxMailWithFilter,
 		arg.Reciever,
 		arg.Body,
@@ -106,9 +157,9 @@ func (q *Queries) InboxMailWithFilter(ctx context.Context, arg InboxMailWithFilt
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Email
+	var items []InboxMailWithFilterRow
 	for rows.Next() {
-		var i Email
+		var i InboxMailWithFilterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -117,6 +168,7 @@ func (q *Queries) InboxMailWithFilter(ctx context.Context, arg InboxMailWithFilt
 			&i.Body,
 			&i.Sender,
 			&i.Reciever,
+			&i.Email,
 		); err != nil {
 			return nil, err
 		}
@@ -180,9 +232,10 @@ func (q *Queries) NumOfSentBoxMailWithFilter(ctx context.Context, arg NumOfSentB
 }
 
 const sentBoxMailWithFilter = `-- name: SentBoxMailWithFilter :many
-select id, created_at, updated_at, subject, body, sender, reciever from email
-where sender = $1 and body like $2 and created_at between $3 and $4
-order by updated_at desc
+select email.id, email.created_at, email.updated_at, email.subject, email.body, email.sender, email.reciever, users.email from email
+inner join users on email.reciever = users.id
+where email.sender = $1 and email.body like $2 and email.created_at between $3 and $4
+order by email.updated_at desc
 limit $5
 offset $6
 `
@@ -196,7 +249,18 @@ type SentBoxMailWithFilterParams struct {
 	Offset      int32
 }
 
-func (q *Queries) SentBoxMailWithFilter(ctx context.Context, arg SentBoxMailWithFilterParams) ([]Email, error) {
+type SentBoxMailWithFilterRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Subject   string
+	Body      string
+	Sender    uuid.UUID
+	Reciever  uuid.UUID
+	Email     string
+}
+
+func (q *Queries) SentBoxMailWithFilter(ctx context.Context, arg SentBoxMailWithFilterParams) ([]SentBoxMailWithFilterRow, error) {
 	rows, err := q.db.QueryContext(ctx, sentBoxMailWithFilter,
 		arg.Sender,
 		arg.Body,
@@ -209,9 +273,9 @@ func (q *Queries) SentBoxMailWithFilter(ctx context.Context, arg SentBoxMailWith
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Email
+	var items []SentBoxMailWithFilterRow
 	for rows.Next() {
-		var i Email
+		var i SentBoxMailWithFilterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -220,6 +284,7 @@ func (q *Queries) SentBoxMailWithFilter(ctx context.Context, arg SentBoxMailWith
 			&i.Body,
 			&i.Sender,
 			&i.Reciever,
+			&i.Email,
 		); err != nil {
 			return nil, err
 		}

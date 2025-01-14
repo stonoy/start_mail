@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/stonoy/start_mail/internal/database"
@@ -58,6 +59,18 @@ func main() {
 	// create a new router
 	r := chi.NewRouter()
 
+	// basic cors
+	r.Use(cors.Handler(cors.Options{
+		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
+		AllowedOrigins: []string{"https://*", "http://*"},
+		// AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
+
 	// created a sub router for api
 	apiRouter := chi.NewRouter()
 
@@ -70,9 +83,10 @@ func main() {
 	apiRouter.Get("/inboxemails", apiCfg.checkUserMiddleware(apiCfg.Inbox))
 	apiRouter.Get("/sentboxemails", apiCfg.checkUserMiddleware(apiCfg.SentBox))
 	apiRouter.Get("/getemail/{emailID}", apiCfg.checkUserMiddleware(apiCfg.getSingleMail))
+	apiRouter.Get("/getmailboxnums", apiCfg.checkUserMiddleware(apiCfg.getMAilBoxNums))
 
 	// favourite
-	apiRouter.Post("/createFav/{emailID}", apiCfg.checkUserMiddleware(apiCfg.createFav))
+	apiRouter.Get("/createFav/{emailID}", apiCfg.checkUserMiddleware(apiCfg.createFav))
 	apiRouter.Get("/getallfavuser", apiCfg.checkUserMiddleware(apiCfg.getAllFav))
 	apiRouter.Delete("/deletefav/{favID}", apiCfg.checkUserMiddleware(apiCfg.deleteFav))
 

@@ -16,6 +16,18 @@ type User struct {
 	Role      string    `json:"role"`
 }
 
+type EmailDetail struct {
+	ID            uuid.UUID `json:"id"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	Subject       string    `json:"subject"`
+	Body          string    `json:"body"`
+	Sender        uuid.UUID `json:"sender"`
+	Reciever      uuid.UUID `json:"receiver"`
+	Sender_Email  string    `json:"sender_email"`
+	Reciver_Email string    `json:"reciver_email"`
+}
+
 type Email struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -24,6 +36,7 @@ type Email struct {
 	Body      string    `json:"body"`
 	Sender    uuid.UUID `json:"sender"`
 	Reciever  uuid.UUID `json:"receiver"`
+	Email     string    `json:"other_side_email"`
 }
 
 type Favourite struct {
@@ -39,7 +52,7 @@ type Favourite struct {
 	Reciever    uuid.UUID `json:"reciver"`
 }
 
-func dbToRespEmail(emails []database.Email) []Email {
+func dbToRespEmailInbox(emails []database.InboxMailWithFilterRow) []Email {
 	final := []Email{}
 
 	for _, email := range emails {
@@ -51,6 +64,26 @@ func dbToRespEmail(emails []database.Email) []Email {
 			Body:      email.Body,
 			Sender:    email.Sender,
 			Reciever:  email.Reciever,
+			Email:     email.Email,
+		})
+	}
+
+	return final
+}
+
+func dbToRespEmailSentBox(emails []database.SentBoxMailWithFilterRow) []Email {
+	final := []Email{}
+
+	for _, email := range emails {
+		final = append(final, Email{
+			ID:        email.ID,
+			CreatedAt: email.CreatedAt,
+			UpdatedAt: email.UpdatedAt,
+			Subject:   email.Subject,
+			Body:      email.Body,
+			Sender:    email.Sender,
+			Reciever:  email.Reciever,
+			Email:     email.Email,
 		})
 	}
 
